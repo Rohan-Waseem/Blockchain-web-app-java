@@ -1,10 +1,10 @@
 HELP.md
-firebase-adminsdk.json
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+src/main/resources/firebase/firebase-adminsdk.json
 ### STS ###
 .apt_generated
 .classpath
