@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Send Transaction - TrackIt</title>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js"></script>
+
+  <!-- jsrsasign for RSA signing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsrsasign/10.5.23/jsrsasign-all-min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #1a1f36;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: white;
+    }
+
+    .container {
+      background: #2c2f4a;
+      padding: 40px;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      color: #1d8cf8;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+      border: none;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+
+    input::placeholder {
+      color: #ccc;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background-color: #1d8cf8;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #0c6ee4;
+    }
+
+    .back {
+      margin-top: 20px;
+      background: transparent;
+      border: 1px solid #ccc;
+      color: #ccc;
+    }
+
+    .back:hover {
+      background-color: #ccc;
+      color: #1a1f36;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 14px;
+      color: #00ff95;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Send Transaction</h2>
+    <input type="text" id="recipient" placeholder="Recipient Wallet Address" />
+    <input type="number" id="amount" placeholder="Amount (₿)" />
+    <button id="sendBtn">Send</button>
+    <button id="mineBtn" style="margin-top: 15px;">⛏️ Mine Pending Transactions</button>
+    <button class="back" onclick="goBack()">← Back to Dashboard</button>
+    <div id="status"></div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "apikeyfromfirebase",
+      authDomain: "authdomainfromfirebase",
+      projectId: "projectidfromfirebase"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
+
+      document.getElementById("sendBtn").onclick = () => sendTransaction(user);
+      document.getElementById("mineBtn").onclick = () => mineTransactions(user);
+    });
+
+    function formatPrivateKey(base64) {
+      return (
+        "-----BEGIN PRIVATE KEY-----\n" +
+        base64.match(/.{1,64}/g).join("\n") +
+        "\n-----END PRIVATE KEY-----"
+      );
+    }
+
+    async function sendTransaction(user) {
+      const recipient = document.getElementById("recipient").value.trim();
+      const amount = parseFloat(document.getElementById("amount").value);
+      const fixedAmount = parseFloat(amount.toFixed(1));
+      const status = document.getElementById("status");
+      status.textContent = "";
+
+      if (!recipient || isNaN(amount) || amount <= 0) {
+        alert("❌ Please enter valid recipient and amount.");
+        return;
+      }
+
+      try {
+        const senderEmail = user.email;
+        const token = await user.getIdToken();
+
+        const walletRef = await db.collection("wallets").where("email", "==", senderEmail).get();
+        if (walletRef.empty) {
+          status.textContent = "❌ Wallet not found.";
+          return;
+        }
+
+        const walletDoc = walletRef.docs[0].data();
+        const privateKeyPem = formatPrivateKey(walletDoc.privateKey);
+        const publicKey = walletDoc.publicKey;
+
+        const timestamp = new Date().toISOString();
+        const message = publicKey + "-" + recipient + "-" + fixedAmount + "-" + timestamp;
+
+        const keyObj = KEYUTIL.getKey(privateKeyPem);
+        const sig = new KJUR.crypto.Signature({ alg: "SHA256withRSA" });
+        sig.init(keyObj);
+        sig.updateString(message);
+        const signature = hextob64(sig.sign());
+
+        console.log("🔍 Message to sign:", message);
+        console.log("📬 Signature:", signature);
+
+        const response = await fetch("http://localhost:8080/api/blockchain/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            receiverAddress: recipient,
+            amount: fixedAmount,
+            timestamp: timestamp,
+            signature: signature
+          })
+        });
+
+        const result = await response.text();
+        if (result.includes("✅")) {
+          status.textContent = "⏳ Transaction pending! Please mine to confirm.";
+        } else {
+          status.textContent = result;
+        }
+
+      } catch (error) {
+        console.error("❌ Error:", error);
+        status.textContent = "❌ Error sending transaction.";
+      }
+    }
+
+    async function mineTransactions(user) {
+  const status = document.getElementById("status");
+  try {
+    const walletSnap = await db.collection("wallets").where("email", "==", user.email).get();
+    if (walletSnap.empty) {
+      status.textContent = "❌ Wallet not found.";
+      return;
+    }
+
+    const publicKey = walletSnap.docs[0].data().publicKey;
+    const encodedMinerKey = encodeURIComponent(publicKey.trim());
+
+    const response = await fetch("http://localhost:8080/api/blockchain/mine", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ minerAddress: encodedMinerKey })
+    });
+
+    const result = await response.text();
+    if (result.includes("⛏️")) {
+      status.textContent = "✅ Block mined successfully!";
+      alert("🎉 Your pending transactions are now confirmed!");
+      location.reload(); // Optional reload
+    } else {
+      status.textContent = result;
+    }
+  } catch (err) {
+    console.error("❌ Mining failed:", err);
+    status.textContent = "❌ Mining failed.";
+  }
+}
+
+    function goBack() {
+      window.location.href = "dashboard.html";
+    }
+  </script>
+</body>
+</html>

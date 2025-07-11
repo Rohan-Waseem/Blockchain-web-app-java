@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard - TrackIt</title>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+      body {
+      background: #1a1f36;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      gap: 30px;
+    }
+
+
+    .card, .pending-box {
+      background: #2c2f4a;
+      padding: 30px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    .card h2 {
+      font-size: 28px;
+      color: #1d8cf8;
+      margin-bottom: 10px;
+    }
+
+    .card p {
+      margin-bottom: 10px;
+      color: #ccc;
+      font-size: 14px;
+    }
+
+    .balance {
+      font-size: 26px;
+      margin-bottom: 20px;
+      font-weight: bold;
+      color: #00ff95;
+    }
+
+    .wallet-address {
+      font-size: 12px;
+      margin-bottom: 25px;
+      color: #aaa;
+      word-break: break-word;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 25px;
+    }
+
+    .actions button,
+    .logout-btn {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .actions button {
+      background-color: #1d8cf8;
+      color: white;
+    }
+
+    .actions button:hover {
+      background-color: #0c6ee4;
+    }
+
+    .logout-btn {
+      background: transparent;
+      border: 1px solid #ff6b6b;
+      color: #ff6b6b;
+    }
+
+    .logout-btn:hover {
+      background-color: #ff6b6b;
+      color: white;
+    }
+
+    .pending-box h3 {
+      color: #1d8cf8;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    .pending-tx {
+      background: rgba(255, 255, 255, 0.05);
+      border-left: 4px solid #1d8cf8;
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .pending-tx .amount {
+      color: #00ff95;
+      font-weight: bold;
+    }
+
+    .pending-tx .to {
+      color: #ccc;
+    }
+    .info-box {
+        background: #1e2a47;
+        color: #ddd;
+        margin-top: 30px;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
+        width: 100%;
+        max-width: 1040px;
+      }
+
+      .info-box h3 {
+        color: #1d8cf8;
+        margin-bottom: 12px;
+      }
+
+      .info-box p {
+        margin-bottom: 10px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .mine-btn {
+        margin-top: 15px;
+        padding: 12px 20px;
+        background-color: #00c78e;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s ease;
+      }
+
+      .mine-btn:hover {
+        background-color: #00a86b;
+      }
+
+    .top-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 30px;
+    max-width: 1040px;
+    width: 100%;
+  }
+  </style>
+</head>
+<body>
+    <div class="top-container">
+  <div class="card">
+    <h2>Welcome, <span id="username">User</span> 👋</h2>
+    <p id="userEmail">Loading email...</p>
+    <div class="wallet-address" id="walletAddress">Wallet: ...</div>
+    <div class="balance" id="balance">₿ 0.0000</div>
+
+    <div class="actions">
+    <button onclick="goToSend()">Send</button>
+    <button onclick="goToHistory()">History</button>
+    <button onclick="goToBlockchain()">Blockchain</button>
+    <button onclick="goToAnalytics()">📊 Analytics</button>
+    </div>
+
+    <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="pending-box">
+      <h3>Pending Transactions</h3>
+      <div id="pendingList">Loading...</div>
+    </div>
+      </div>
+    <div class="info-box">
+    <h3>📣 How Mining Works</h3>
+    <p>
+      When you send a transaction, it remains <strong>pending</strong> until it is mined into a block.
+      Mining confirms your transaction and makes it a permanent part of the blockchain.
+    </p>
+    <p>
+      <strong>⚠️ Unmined transactions will not reflect in balances and may disappear if the system restarts.</strong>
+    </p>
+    <p>
+      <strong>💰 You earn 1 coin</strong> as a reward every time you mine a block, even if there are no user transactions!
+    </p>
+    <button class="mine-btn" onclick="mineReward()">⛏️ Mine for Reward</button>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+       apiKey: "apikeyfromfirebase",
+      authDomain: "authdomainfromfirebase",
+      projectId: "projectidfromfirebase"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    let userPublicKey = null;
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      if (!user) return (window.location.href = "login.html");
+
+      document.getElementById("username").textContent = user.displayName || "User";
+      document.getElementById("userEmail").textContent = user.email;
+
+      try {
+        const token = await user.getIdToken();
+
+        const walletRes = await fetch(`http://localhost:8080/api/wallet/${user.email}`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        const walletData = await walletRes.json();
+        userPublicKey = walletData.publicKey;
+
+        document.getElementById("walletAddress").textContent = `Wallet: ${walletData.publicKey}`;
+        document.getElementById("balance").textContent = `₿ ${parseFloat(walletData.balance).toFixed(4)}`;
+
+        loadPendingTransactions();
+
+      } catch (err) {
+        console.error("Failed to load wallet info", err);
+        document.getElementById("walletAddress").textContent = "Wallet: Error";
+        document.getElementById("balance").textContent = "₿ Error";
+      }
+    });
+
+    function logout() {
+      firebase.auth().signOut().then(() => {
+        window.location.href = "login.html";
+      });
+    }
+
+    function goToSend() {
+      window.location.href = "send.html";
+    }
+
+    function goToHistory() {
+      window.location.href = "history.html";
+    }
+    function goToBlockchain() {
+        window.location.href = "blockchain.html";
+      }
+      function goToAnalytics() {
+        window.location.href = "analytics.html";
+      }
+    async function mineReward() {
+    try {
+      const user = firebase.auth().currentUser;
+      const token = await user.getIdToken();
+
+      const walletRes = await fetch(`http://localhost:8080/api/wallet/${user.email}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+
+      const walletData = await walletRes.json();
+      const encodedKey = encodeURIComponent(walletData.publicKey.trim());
+
+      const res = await fetch("http://localhost:8080/api/blockchain/mine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minerAddress: encodedKey })
+      });
+
+      const resultText = await res.text();
+      alert(resultText);
+      location.reload();
+    } catch (err) {
+      console.error("⛏️ Mining failed:", err);
+      alert("❌ Mining failed. Please try again.");
+    }
+    }
+
+    async function loadPendingTransactions() {
+      const container = document.getElementById("pendingList");
+      try {
+        const res = await fetch("http://localhost:8080/api/blockchain/pending");
+        const txs = await res.json();
+
+        const myTxs = txs.filter(tx =>
+          tx.sender === userPublicKey || tx.receiver === userPublicKey
+        );
+
+        if (myTxs.length === 0) {
+          container.innerHTML = "<p>No pending transactions.</p>";
+          return;
+        }
+
+        container.innerHTML = "";
+        myTxs.forEach(tx => {
+          const div = document.createElement("div");
+          div.className = "pending-tx";
+          div.innerHTML = `
+            <div class="amount">₿${tx.amount}</div>
+            <div class="to">${tx.sender === "System" ? "Mining Reward" : "To: " + tx.receiver.slice(0, 30) + "..."}</div>
+          `;
+          container.appendChild(div);
+        });
+      } catch (err) {
+        console.error("Failed to load pending txs", err);
+        container.innerHTML = "<p>Error loading transactions.</p>";
+      }
+    }
+  </script>
+</body>
+</html>

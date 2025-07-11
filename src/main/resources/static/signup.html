@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sign Up - TrackIt</title>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      background: linear-gradient(135deg, #141e30, #616e7d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #loadingScreen {
+      position: fixed;
+      inset: 0;
+      background: #141e30;
+      color: white;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .container {
+      display: none;
+      width: 100%;
+      max-width: 400px;
+      padding: 40px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      text-align: center;
+    }
+
+    h2 {
+      margin-bottom: 30px;
+      color: #ffffff;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0 20px 0;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-size: 16px;
+      outline: none;
+      transition: background 0.3s ease;
+    }
+
+    input::placeholder {
+      color: #ddd;
+    }
+
+    input:focus {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background-color: #1d8cf8;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.2s;
+    }
+
+    button:hover {
+      background-color: #0c6ee4;
+      transform: scale(1.02);
+    }
+
+    .link {
+      margin-top: 20px;
+      color: #ffffff;
+    }
+
+    .link a {
+      color: #1d8cf8;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .link a:hover {
+      text-decoration: underline;
+    }
+
+    .error {
+      color: #ff6b6b;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+
+    .success {
+      color: #00ff95;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loadingScreen">Checking authentication...</div>
+
+  <div class="container" id="signupContainer">
+    <h2>Create Your <span style="color:#1d8cf8;">TrackIt</span> Account</h2>
+    <input type="text" id="signupName" placeholder="Full Name" />
+    <input type="email" id="signupEmail" placeholder="Email" />
+    <input type="password" id="signupPassword" placeholder="Password" />
+    <button onclick="signup()">Sign Up</button>
+    <div class="link">Already have an account? <a href="login.html">Login here</a></div>
+    <div id="signupError" class="error"></div>
+    <div id="signupSuccess" class="success"></div>
+  </div>
+
+  <script>
+  const firebaseConfig = {
+     apiKey: "apikeyfromfirebase",
+      authDomain: "authdomainfromfirebase",
+      projectId: "projectidfromfirebase"
+  };
+  firebase.initializeApp(firebaseConfig);
+
+  // ✅ Show signup form only, no redirect
+  firebase.auth().onAuthStateChanged((user) => {
+    document.getElementById("loadingScreen").style.display = "none";
+    document.getElementById("signupContainer").style.display = "block";
+  });
+
+  async function signup() {
+    const name = document.getElementById("signupName").value.trim();
+    const email = document.getElementById("signupEmail").value.trim();
+    const password = document.getElementById("signupPassword").value;
+    const errorDiv = document.getElementById("signupError");
+    const successDiv = document.getElementById("signupSuccess");
+
+    errorDiv.textContent = "";
+    successDiv.textContent = "";
+
+    if (!name || !email || !password) {
+      errorDiv.textContent = "❌ All fields are required.";
+      return;
+    }
+
+    try {
+      await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      const result = await firebase.auth().createUserWithEmailAndPassword(email, password);
+      await result.user.updateProfile({ displayName: name });
+
+      const idToken = await result.user.getIdToken(); // ✅ Get token after signup
+
+      console.log("🔑 ID Token retrieved:", idToken);
+
+      const response = await fetch("http://localhost:8080/auth/verify", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + idToken
+        }
+      });
+
+      const resultText = await response.text();
+      console.log("🌐 Backend /auth/verify response:", resultText);
+
+      if (!response.ok) {
+        throw new Error("Backend wallet creation failed: " + resultText);
+      }
+
+      // ✅ Redirect after backend call is done
+      window.location.href = "dashboard.html";
+
+    } catch (err) {
+      errorDiv.textContent = "❌ " + err.message;
+      console.error("❌ Signup Error:", err);
+    }
+  }
+</script>
+
+</body>
+</html>

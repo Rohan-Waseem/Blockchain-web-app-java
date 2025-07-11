@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Transaction History - TrackIt</title>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-firestore-compat.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      background: #1a1f36;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 20px;
+    }
+
+    .container {
+      background: #2c2f4a;
+      padding: 30px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      color: #1d8cf8;
+      text-align: center;
+    }
+
+    .transaction {
+      background: rgba(255, 255, 255, 0.05);
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      border-left: 4px solid #1d8cf8;
+    }
+
+    .transaction .amount {
+      font-size: 16px;
+      color: #00ff95;
+      font-weight: bold;
+    }
+
+    .transaction .to,
+    .transaction .date {
+      font-size: 14px;
+      color: #ccc;
+    }
+
+    .back-btn {
+      margin-top: 25px;
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      background-color: transparent;
+      border: 1px solid #ccc;
+      color: #ccc;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .back-btn:hover {
+      background-color: #ccc;
+      color: #1a1f36;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Transaction History</h2>
+    <div id="historyList">Loading...</div>
+    <button class="back-btn" onclick="goBack()">← Back to Dashboard</button>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+       apiKey: "apikeyfromfirebase",
+      authDomain: "authdomainfromfirebase",
+      projectId: "projectidfromfirebase"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      if (!user) {
+        window.location.href = "login.html";
+        return;
+      }
+
+      try {
+        const walletSnap = await db.collection("wallets").where("email", "==", user.email).get();
+        if (walletSnap.empty) {
+          document.getElementById("historyList").innerHTML = "<p>❌ Wallet not found.</p>";
+          return;
+        }
+
+        const userKey = walletSnap.docs[0].data().publicKey;
+        const blocksSnap = await db.collection("blockchain").orderBy("index").get();
+        const historyList = document.getElementById("historyList");
+        historyList.innerHTML = "";
+
+        let found = false;
+
+        blocksSnap.forEach(doc => {
+          const block = doc.data();
+          const txs = block.transactions || [];
+
+          txs.forEach(tx => {
+            if (tx.sender === userKey || tx.receiver === userKey) {
+              found = true;
+              const div = document.createElement("div");
+              const isSender = tx.sender === userKey;
+              const direction = isSender ? "To" : "From";
+              const otherParty = isSender ? tx.receiver : tx.sender;
+              const amountSign = isSender ? "-" : "+";
+              const timestamp = tx.timestamp || block.timestamp;
+              const formattedDate = new Date(timestamp).toLocaleString();
+
+              div.classList.add("transaction");
+              div.innerHTML = `
+                <div class="amount">${amountSign} ₿${tx.amount}</div>
+                <div class="to">${direction}: <strong>${otherParty.slice(0, 25)}...</strong></div>
+                <div class="date">${formattedDate}</div>
+              `;
+              historyList.appendChild(div);
+            }
+          });
+        });
+
+        if (!found) {
+          historyList.innerHTML = "<p>No transactions found.</p>";
+        }
+
+      } catch (error) {
+        console.error("❌ Error loading transactions:", error);
+        document.getElementById("historyList").innerHTML = "<p>❌ Failed to load transactions.</p>";
+      }
+    });
+
+    function goBack() {
+      window.location.href = "dashboard.html";
+    }
+  </script>
+</body>
+</html>

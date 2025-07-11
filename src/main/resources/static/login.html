@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TrackIt Login</title>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      background: linear-gradient(135deg, #141e30, #243b55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #loadingScreen {
+      position: fixed;
+      inset: 0;
+      background: #141e30;
+      color: white;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .login-container {
+      display: none;
+      width: 100%;
+      max-width: 400px;
+      padding: 40px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      text-align: center;
+    }
+
+    h2 {
+      margin-bottom: 30px;
+      color: #ffffff;
+    }
+
+    input[type="email"],
+    input[type="password"] {
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0 20px 0;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      font-size: 16px;
+      outline: none;
+      transition: background 0.3s ease;
+    }
+
+    input::placeholder {
+      color: #ddd;
+    }
+
+    input:focus {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background-color: #1d8cf8;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.2s;
+    }
+
+    button:hover {
+      background-color: #0c6ee4;
+      transform: scale(1.02);
+    }
+
+    .link {
+      margin-top: 20px;
+      color: #ffffff;
+    }
+
+    .link a {
+      color: #1d8cf8;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .link a:hover {
+      text-decoration: underline;
+    }
+
+    .error {
+      color: #ff6b6b;
+      font-size: 14px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="loadingScreen">Checking authentication...</div>
+
+  <div class="login-container" id="loginContainer">
+    <h2>Login to <span style="color: #1d8cf8;">TrackIt</span></h2>
+    <input type="email" id="loginEmail" placeholder="Email" required />
+    <input type="password" id="loginPassword" placeholder="Password" required />
+    <button onclick="login()">Login</button>
+    <div class="link">Don't have an account? <a href="signup.html">Sign up</a></div>
+    <div id="loginError" class="error"></div>
+    <div id="loginSuccess" class="success"></div>
+  </div>
+
+ <script>
+  const firebaseConfig = {
+     apiKey: "apikeyfromfirebase",
+      authDomain: "authdomainfromfirebase",
+      projectId: "projectidfromfirebase"
+  };
+  firebase.initializeApp(firebaseConfig);
+
+  // ✅ Don't auto-redirect on login page load
+  firebase.auth().onAuthStateChanged((user) => {
+    document.getElementById("loadingScreen").style.display = "none";
+    document.getElementById("loginContainer").style.display = "block";
+  });
+
+  async function login() {
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const errorDiv = document.getElementById("loginError");
+    const successDiv = document.getElementById("loginSuccess");
+
+    errorDiv.textContent = "";
+    successDiv.textContent = "";
+
+    if (!email || !password) {
+      errorDiv.textContent = "❌ Email and password are required.";
+      return;
+    }
+
+    try {
+      await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      const result = await firebase.auth().signInWithEmailAndPassword(email, password);
+
+      const idToken = await result.user.getIdToken(); // ✅ after login
+
+      console.log("🔑 ID Token retrieved:", idToken);
+
+      const response = await fetch("http://localhost:8080/auth/verify", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + idToken
+        }
+      });
+
+      const resultText = await response.text();
+      console.log("🌐 Backend /auth/verify response:", resultText);
+
+      if (!response.ok) {
+        throw new Error("Backend wallet verification failed: " + resultText);
+      }
+
+      window.location.href = "dashboard.html";
+
+    } catch (err) {
+      errorDiv.textContent = "❌ " + err.message;
+      console.error("❌ Login Error:", err);
+    }
+  }
+</script>
+
+</body>
+</html>

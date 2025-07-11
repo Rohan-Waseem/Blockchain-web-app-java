@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Blockchain Explorer - TrackIt</title>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.5.2/firebase-auth-compat.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', sans-serif;
+    }
+
+    body {
+      background: #1a1f36;
+      color: white;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #1d8cf8;
+      margin-bottom: 30px;
+    }
+
+    .block {
+      background: #2c2f4a;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .block h2 {
+      color: #00ff95;
+      margin-bottom: 10px;
+    }
+
+    .block p {
+      color: #ccc;
+      font-size: 14px;
+      margin: 4px 0;
+      word-break: break-word;
+    }
+
+    .transactions {
+      margin-top: 15px;
+      border-top: 1px solid #444;
+      padding-top: 10px;
+    }
+
+    .tx {
+      background: rgba(255, 255, 255, 0.05);
+      border-left: 4px solid #1d8cf8;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .tx p {
+      margin: 2px 0;
+      font-size: 13px;
+    }
+
+    .back-btn {
+      display: block;
+      width: 100%;
+      margin-top: 30px;
+      padding: 12px;
+      border-radius: 10px;
+      background: transparent;
+      border: 1px solid #ccc;
+      color: #ccc;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .back-btn:hover {
+      background: #ccc;
+      color: #1a1f36;
+    }
+  </style>
+</head>
+<body>
+  <h1>⛓️ Blockchain Explorer</h1>
+  <div id="chainContainer">Loading blockchain...</div>
+  <button class="back-btn" onclick="window.location.href='dashboard.html'">← Back to Dashboard</button>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "apikeyfromfirebase",
+      authDomain: "authdomainfromfirebase",
+      projectId: "projectidfromfirebase"
+    };
+    firebase.initializeApp(firebaseConfig);
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      if (!user) {
+        window.location.href = "login.html";
+      } else {
+        try {
+          const token = await user.getIdToken();
+          const res = await fetch("http://localhost:8080/api/blockchain/chain", {
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          const chain = await res.json();
+          const container = document.getElementById("chainContainer");
+          container.innerHTML = "";
+
+          chain.forEach(block => {
+            const div = document.createElement("div");
+            div.className = "block";
+            div.innerHTML = `
+              <h2>Block #${block.index}</h2>
+              <p><strong>Timestamp:</strong> ${new Date(block.timestamp).toLocaleString()}</p>
+              <p><strong>Hash:</strong> ${block.hash}</p>
+              <p><strong>Previous Hash:</strong> ${block.previousHash}</p>
+              <p><strong>Nonce:</strong> ${block.nonce}</p>
+
+              <div class="transactions">
+                <h3>Transactions:</h3>
+                ${block.transactions.map(tx => `
+                  <div class="tx">
+                    <p><strong>From:</strong> ${tx.sender}</p>
+                    <p><strong>To:</strong> ${tx.receiver}</p>
+                    <p><strong>Amount:</strong> ₿${tx.amount}</p>
+                    <p><strong>Date:</strong> ${new Date(tx.timestamp).toLocaleString()}</p>
+                  </div>
+                `).join("")}
+              </div>
+            `;
+            container.appendChild(div);
+          });
+        } catch (err) {
+          document.getElementById("chainContainer").textContent = "❌ Failed to load blockchain.";
+          console.error(err);
+        }
+      }
+    });
+  </script>
+</body>
+</html>

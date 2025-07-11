@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Analytics - TrackIt</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: #12192c;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      padding: 40px;
+    }
+
+    .dashboard {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .card {
+      background: #1e2a47;
+      border-radius: 12px;
+      padding: 20px 25px;
+      flex: 1;
+      min-width: 220px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 20px;
+      color: #00c78e;
+    }
+
+    .card p {
+      font-size: 16px;
+      margin: 0;
+      color: #ddd;
+    }
+
+    .wallet-display {
+      word-break: break-word;
+      font-size: 14px;
+      color: #00ff95;
+    }
+
+    canvas {
+      margin-top: 20px;
+      background: #1e2a47;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .chart-container {
+    max-width: 800px;
+    width: 100%;
+    margin: auto;
+    background: #1e2a47;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+  }
+
+  </style>
+</head>
+<body>
+
+  <h1 style="color: #1d8cf8; margin-bottom: 20px;">📊 Blockchain Analytics</h1>
+
+  <div class="dashboard">
+    <div class="card">
+      <h2>⛓ Total Blocks</h2>
+      <p id="blockCount">...</p>
+    </div>
+    <div class="card">
+      <h2>🔄 Total Transactions</h2>
+      <p id="txCount">...</p>
+    </div>
+    <div class="card">
+      <h2>🏆 Richest Wallet</h2>
+      <p class="wallet-display" id="richWallet">...</p>
+    </div>
+    <div class="card">
+      <h2>💰 Highest Balance</h2>
+      <p id="richBalance">...</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top: 30px;">📈 Transactions Per Day</h3>
+  <div class="chart-container">
+  <canvas id="lineChart" height="250"></canvas>
+  </div>
+
+  
+  <h3 style="margin-top: 50px;">🥧 Top Wallet Balances</h3>
+  <div class="chart-container">
+  <canvas id="pieChart" height="200"></canvas>
+  </div>
+
+  <script>
+    async function loadAnalytics() {
+      const res = await fetch("http://localhost:8080/api/analytics/summary");
+      const data = await res.json();
+
+      document.getElementById("blockCount").textContent = data.totalBlocks;
+      document.getElementById("txCount").textContent = data.totalTransactions;
+      document.getElementById("richWallet").textContent = data.richestWallet;
+      document.getElementById("richBalance").textContent = `₿ ${data.highestBalance.toFixed(4)}`;
+
+      drawLineChart(data.transactionsPerDay);
+      if (data.topWallets) drawPieChart(data.topWallets);
+    }
+
+    function drawLineChart(txPerDay) {
+      const labels = Object.keys(txPerDay);
+      const values = Object.values(txPerDay);
+
+      const ctx = document.getElementById('lineChart').getContext('2d');
+      ctx.canvas.height = 200;
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Transactions Per Day',
+            data: values,
+            borderColor: '#1d8cf8',
+            backgroundColor: 'rgba(29, 140, 248, 0.2)',
+            tension: 0.4,
+            fill: true,
+            pointRadius: 4,
+            pointBackgroundColor: '#fff'
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { labels: { color: '#fff' } }
+          },
+          scales: {
+            x: { ticks: { color: '#fff' }, grid: { color: '#444' } },
+            y: { beginAtZero: true, ticks: { color: '#fff' }, grid: { color: '#444' } }
+          }
+        }
+      });
+    }
+
+    function drawPieChart(wallets) {
+      const labels = Object.keys(wallets).map(w => w.slice(0, 6) + "...");
+      const values = Object.values(wallets);
+
+      const ctx = document.getElementById('pieChart').getContext('2d');
+      ctx.canvas.height = 200;
+      new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: ['#1d8cf8', '#00c78e', '#ffc107', '#e74c3c', '#8e44ad']
+          }]
+        },
+        options: {
+          plugins: {
+            legend: {
+              labels: { color: '#fff' }
+            }
+          }
+        }
+      });
+    }
+
+    loadAnalytics();
+  </script>
+
+</body>
+</html>
