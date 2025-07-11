@@ -40,7 +40,7 @@ This app demonstrates **real blockchain functionalities** including block creati
 
 1. **Clone this repository:**
 
-```bash
+bash:
 git clone https://github.com/yourusername/blockchain-web-app.git
 
 2. **Set up Firebase:**  
